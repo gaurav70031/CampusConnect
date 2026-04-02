@@ -14,7 +14,18 @@ const app = express();
 const PORT = 3000;
 
 console.log('Loading Firebase config...');
-const firebaseConfig = JSON.parse(readFileSync('./firebase-applet-config.json', 'utf8'));
+let firebaseConfig: any;
+try {
+  firebaseConfig = JSON.parse(readFileSync('./firebase-applet-config.json', 'utf8'));
+} catch (err) {
+  console.log('firebase-applet-config.json not found, trying environment variable...');
+  if (process.env.FIREBASE_APPLET_CONFIG) {
+    firebaseConfig = JSON.parse(process.env.FIREBASE_APPLET_CONFIG);
+  } else {
+    console.error('Firebase config not found in file or environment variable!');
+    process.exit(1);
+  }
+}
 
 import { initializeApp as initializeClientApp } from 'firebase/app';
 import { getFirestore as getClientFirestore, doc as clientDoc, setDoc as clientSetDoc, getDoc as clientGetDoc, collection as clientCollection, query as clientQuery, where as clientWhere, orderBy as clientOrderBy, getDocs as clientGetDocs, deleteDoc as clientDeleteDoc, updateDoc as clientUpdateDoc, addDoc as clientAddDoc, or as clientOr } from 'firebase/firestore';
@@ -974,10 +985,14 @@ async function setupVite() {
     });
   });
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
+  }
 }
+
+export default app;
 
 // Initialize everything and start server
 async function start() {
