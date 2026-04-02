@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the CampusConnect platform (Faculty or Student).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID." },
+        "name": { "type": "string", "description": "The user's full name." },
+        "universityId": { "type": "string", "description": "The user's university ID (Student/Faculty ID)." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "role": { "type": "string", "enum": ["faculty", "student"], "description": "The user's role." },
+        "department": { "type": "string", "description": "The user's department." },
+        "section": { "type": "string", "description": "The user's section (for students)." },
+        "cuchdEmail": { "type": "string", "format": "email", "description": "The user's official CUCHD email address." },
+        "cuchdEmailVerified": { "type": "boolean", "description": "Whether the CUCHD email has been verified." },
+        "bio": { "type": "string", "description": "A short biography." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the user was created." }
+      },
+      "required": ["uid", "name", "universityId", "email", "role", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "A research or academic project posted by a faculty member.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The title of the project." },
+        "description": { "type": "string", "description": "Detailed description of the project." },
+        "department": { "type": "string", "description": "The department the project belongs to." },
+        "keywords": { "type": "array", "items": { "type": "string" }, "description": "Keywords for filtering." },
+        "facultyId": { "type": "string", "description": "The ID of the faculty member who posted the project." },
+        "facultyName": { "type": "string", "description": "The name of the faculty member." },
+        "status": { "type": "string", "enum": ["open", "closed"], "description": "The status of the project." },
+        "supportingDocuments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "data": { "type": "string", "description": "Base64 encoded file data." }
+            }
+          },
+          "description": "Roadmaps or other supporting documents."
+        },
+        "teamLeaderId": { "type": "string", "description": "The UID of the appointed student team leader." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the project was posted." }
+      },
+      "required": ["title", "description", "department", "keywords", "facultyId", "facultyName", "status", "createdAt"]
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "An inquiry made by a student to a faculty member regarding a project.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "description": "The ID of the project." },
+        "projectTitle": { "type": "string", "description": "The title of the project." },
+        "studentId": { "type": "string", "description": "The ID of the student making the inquiry." },
+        "studentName": { "type": "string", "description": "The name of the student." },
+        "facultyId": { "type": "string", "description": "The ID of the faculty member." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"], "description": "The status of the inquiry." },
+        "projectReport": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "type": { "type": "string" },
+            "data": { "type": "string", "description": "Base64 encoded file data." }
+          },
+          "description": "Final project report uploaded by the student."
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the inquiry was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "When the inquiry was last updated." }
+      },
+      "required": ["projectId", "projectTitle", "studentId", "studentName", "facultyId", "status", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message sent within an inquiry thread.",
+      "type": "object",
+      "properties": {
+        "inquiryId": { "type": "string", "description": "The ID of the inquiry thread." },
+        "senderId": { "type": "string", "description": "The ID of the user sending the message." },
+        "senderName": { "type": "string", "description": "The name of the sender." },
+        "text": { "type": "string", "description": "The content of the message." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the message was sent." }
+      },
+      "required": ["inquiryId", "senderId", "senderName", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Stores projects posted by faculty."
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/Inquiry" },
+      "description": "Stores inquiries from students to faculty."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores messages within inquiries."
+    }
+  }
+}

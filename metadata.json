@@ -1,0 +1,5 @@
+{
+  "name": "CampusConnect",
+  "description": "A collaborative web application for university project matching, connecting faculty and students.",
+  "requestFramePermissions": []
+}
