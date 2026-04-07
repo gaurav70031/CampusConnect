@@ -6,7 +6,21 @@ import { useNavigate } from 'react-router-dom';
 import { COUNTRIES } from '../constants/countries';
 
 export function Home() {
-  const { user, userData, loading: authLoading, login, loginWithEmail, signUpWithEmail, sendEmailOTP, verifyEmailOTP, completeProfile } = useAuth();
+  const { 
+    user, 
+    userData, 
+    loading: authLoading, 
+    hasDismissedProfilePrompt,
+    setHasDismissedProfilePrompt,
+    login, 
+    loginWithEmail, 
+    signUpWithEmail, 
+    sendEmailOTP, 
+    verifyEmailOTP, 
+    logout,
+    completeProfile,
+    refreshUserData
+  } = useAuth();
   const navigate = useNavigate();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoginMode, setIsLoginMode] = useState(false);
@@ -33,6 +47,14 @@ export function Home() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
+  
+  // If user is logged in (e.g., via Google) but has no profile data, show the sign up modal
+  React.useEffect(() => {
+    if (user && !userData && !authLoading && !hasDismissedProfilePrompt && !showAuthModal) {
+      setIsLoginMode(false);
+      setShowAuthModal(true);
+    }
+  }, [user, userData, authLoading, hasDismissedProfilePrompt, showAuthModal]);
 
   if (authLoading) {
     return (
@@ -44,12 +66,6 @@ export function Home() {
 
   if (user && userData) {
     return <Navigate to="/dashboard" replace />;
-  }
-
-  // If user is logged in (e.g., via Google) but has no profile data, show the sign up modal
-  if (user && !userData && !showAuthModal) {
-    setIsLoginMode(false);
-    setShowAuthModal(true);
   }
 
   const handleSendOtp = async () => {
@@ -115,32 +131,18 @@ export function Home() {
 
         // If user is already authenticated (e.g. via Google) but lacks profile data
         if (user) {
-          const token = await user.getIdToken();
-          const res = await fetch('/api/users', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              name: name || user.displayName || 'Anonymous',
-              universityId,
-              email: user.email || email,
-              phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : '',
-              role,
-              department: department || '',
-              specialization: role === 'student' ? specialization : '',
-              section: role === 'student' ? section : '',
-              group: role === 'student' ? group : '',
-              bio: bio || '',
-              createdAt: new Date().toISOString()
-            })
+          await completeProfile({
+            name: name || user.displayName || 'Anonymous',
+            universityId,
+            email: user.email || email,
+            phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : '',
+            role,
+            department: department || '',
+            specialization: role === 'student' ? specialization : '',
+            section: role === 'student' ? section : '',
+            group: role === 'student' ? group : '',
+            bio: bio || ''
           });
-
-          if (!res.ok) {
-            const errorData = await res.json();
-            throw new Error(errorData.error || 'Failed to save profile data');
-          }
           
           setShowAuthModal(false);
           navigate('/dashboard');
@@ -164,36 +166,22 @@ export function Home() {
         await verifyEmailOTP(email, otp, true);
         
         // Create user with email and password
-        const newUser = await signUpWithEmail(email, password, name);
+        await signUpWithEmail(email, password, name);
         
         // Complete profile immediately
-        const token = await newUser.getIdToken();
-        const res = await fetch('/api/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            name: name || 'Anonymous',
-            universityId,
-            email: email,
-            phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : '',
-            role,
-            department: department || '',
-            specialization: role === 'student' ? specialization : '',
-            section: role === 'student' ? section : '',
-            group: role === 'student' ? group : '',
-            bio: bio || '',
-            createdAt: new Date().toISOString()
-          })
+        await completeProfile({
+          name: name || 'Anonymous',
+          universityId,
+          email: email,
+          phoneNumber: phoneNumber ? `${countryCode}${phoneNumber}` : '',
+          role,
+          department: department || '',
+          specialization: role === 'student' ? specialization : '',
+          section: role === 'student' ? section : '',
+          group: role === 'student' ? group : '',
+          bio: bio || ''
         });
 
-        if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'Failed to save profile data');
-        }
-        
         setShowAuthModal(false);
         navigate('/dashboard');
       }
@@ -245,7 +233,10 @@ export function Home() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col relative overflow-hidden">
               <button 
-                onClick={() => setShowAuthModal(false)}
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setHasDismissedProfilePrompt(true);
+                }}
                 className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10 bg-white/80 rounded-full p-1 backdrop-blur-sm"
               >
                 <X className="h-6 w-6" />
@@ -570,7 +561,7 @@ export function Home() {
                       )}
                     </button>
 
-                  <div className="text-center">
+                  <div className="text-center space-y-4">
                     {!user && (
                       <button
                         type="button"
@@ -583,6 +574,33 @@ export function Home() {
                       >
                         {isLoginMode ? "Don't have an account? Sign Up" : "Already have an account? Login"}
                       </button>
+                    )}
+                    
+                    {user && (
+                      <div className="pt-4 border-t border-gray-100 flex flex-col items-center space-y-3">
+                        <p className="text-xs text-gray-500">
+                          Logged in as <span className="font-semibold text-gray-700">{user.email}</span>
+                        </p>
+                        <div className="flex gap-4">
+                          <button
+                            type="button"
+                            onClick={() => refreshUserData()}
+                            className="text-sm text-blue-600 font-semibold hover:underline"
+                          >
+                            Refresh Data
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAuthModal(false);
+                              logout();
+                            }}
+                            className="text-sm text-red-600 font-semibold hover:underline"
+                          >
+                            Log Out
+                          </button>
+                        </div>
+                      </div>
                     )}
                   </div>
 

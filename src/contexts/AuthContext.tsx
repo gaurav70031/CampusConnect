@@ -41,19 +41,23 @@ export interface UserData {
   roomNo?: string;
   freeLectures?: FreeLecture[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   userData: UserData | null;
   loading: boolean;
+  hasDismissedProfilePrompt: boolean;
+  setHasDismissedProfilePrompt: (val: boolean) => void;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, name: string) => Promise<User>;
   sendEmailOTP: (email: string) => Promise<void>;
-  verifyEmailOTP: (email: string, otp: string) => Promise<void>;
+  verifyEmailOTP: (email: string, otp: string, isSignUp?: boolean) => Promise<void>;
   logout: () => Promise<void>;
-  completeProfile: (role: 'faculty' | 'student', universityId: string, department?: string, section?: string, group?: string, bio?: string, name?: string) => Promise<void>;
+  completeProfile: (data: Partial<UserData>) => Promise<void>;
+  refreshUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasDismissedProfilePrompt, setHasDismissedProfilePrompt] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -76,10 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           if (res.ok) {
             const data = await res.json();
-            console.log('[Auth] User data fetched successfully');
+            console.log('[Auth] User data fetched successfully:', data.uid);
             setUserData(data);
           } else {
-            console.log('[Auth] User data not found (404 or other)');
+            console.log(`[Auth] User data fetch failed with status: ${res.status}`);
             setUserData(null);
           }
         } catch (error) {
@@ -173,7 +178,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const completeProfile = async (role: 'faculty' | 'student', universityId: string, department?: string, section?: string, group?: string, bio?: string, name?: string) => {
+  const refreshUserData = async () => {
+    if (!auth.currentUser) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/users/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserData(data);
+      }
+    } catch (error) {
+      console.error('[Auth] Failed to refresh user data:', error);
+    }
+  };
+
+  const completeProfile = async (profileData: Partial<UserData>) => {
     if (!user) throw new Error('No authenticated user');
     
     try {
@@ -185,15 +206,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: name || user.displayName || 'Anonymous',
-          universityId,
-          email: user.email || '',
-          phoneNumber: user.phoneNumber || '',
-          role,
-          department: department || '',
-          section: section || '',
-          group: group || '',
-          bio: bio || ''
+          ...profileData,
+          name: profileData.name || user.displayName || 'Anonymous',
+          email: user.email || profileData.email || '',
+          phoneNumber: user.phoneNumber || profileData.phoneNumber || '',
+          createdAt: new Date().toISOString()
         })
       });
       
@@ -217,13 +234,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user, 
       userData, 
       loading, 
+      hasDismissedProfilePrompt,
+      setHasDismissedProfilePrompt,
       login, 
       loginWithEmail,
       signUpWithEmail,
       sendEmailOTP,
       verifyEmailOTP,
       logout, 
-      completeProfile 
+      completeProfile,
+      refreshUserData
     }}>
       {children}
     </AuthContext.Provider>

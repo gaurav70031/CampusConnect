@@ -73,9 +73,13 @@ async function initializeDb() {
       projectId: projectId
     });
     
+    // Check if users collection exists and has data
+    const usersSnapshot = await adminDb.collection('users').limit(1).get();
+    console.log(`[Admin] Users collection check: ${usersSnapshot.empty ? 'EMPTY' : 'HAS DATA'}`);
+    
     db = adminDb;
     useClientSdk = false;
-    console.log('[Admin] Successfully connected and wrote to Firestore');
+    console.log('[Admin] Successfully connected and verified Firestore');
   } catch (err: any) {
     console.error('[Admin] Firestore connection failed:', err.message);
     lastInitError = {
@@ -368,6 +372,14 @@ app.get('/api/debug/firestore', async (req, res) => {
   }
 });
 
+// Admin check helper
+const isAdmin = (user: any) => {
+  return user && (
+    user.role === 'admin' || 
+    (user.email === 'gauravgunjan70031@gmail.com' && user.email_verified === true)
+  );
+};
+
 // Authentication middleware
 const authenticate = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
@@ -449,6 +461,7 @@ app.get('/api/debug/firebase', async (req, res) => {
     let dbStatus = 'unknown';
     let dbError = null;
     let testResult = null;
+    let usersCount = -1;
     
     try {
       const testRef = db.collection('health').doc('check');
@@ -456,6 +469,9 @@ app.get('/api/debug/firebase', async (req, res) => {
       const doc = await testRef.get();
       dbStatus = 'connected';
       testResult = doc.data();
+      
+      const usersSnap = await db.collection('users').get();
+      usersCount = usersSnap.size;
     } catch (e: any) {
       dbStatus = 'failed';
       dbError = {
@@ -469,6 +485,7 @@ app.get('/api/debug/firebase', async (req, res) => {
     res.json({
       config,
       dbStatus,
+      usersCount,
       testResult,
       dbError,
       env: {
